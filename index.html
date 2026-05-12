@@ -422,6 +422,8 @@
       }
 
       // Remove empty hint if any
+      // Dispose old chart instance before clearing DOM
+      if (barChart) { barChart.dispose(); barChart = null; }
       container.innerHTML = '';
 
       if (!barChart) {
@@ -511,6 +513,8 @@
         return;
       }
 
+      // Dispose old chart instance before clearing DOM
+      if (lineChart) { lineChart.dispose(); lineChart = null; }
       container.innerHTML = '';
       if (!lineChart) {
         lineChart = echarts.init(container);
