@@ -1,8 +1,9 @@
 /**
  * scrape.js
  *
- * Use Playwright + system Chrome (headless) to scrape front-end job listings
- * from 51job (前程无忧) and write results to data/raw_jobs.json.
+ * Use Playwright + system Chrome to scrape front-end job listings from 51job.
+ * Strategy: navigate to the search page and intercept the API responses via
+ * page.on('response') — this ensures real cookies and browser fingerprints.
  *
  * Usage: node scripts/scrape.js
  */
@@ -13,100 +14,34 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 const CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const KEYWORD = '前端';
 const PAGES = 5;
-const DELAY_MS = 800;
-const BASE_URL = 'https://we.51job.com/api/job/search-pc';
-const HOME_URL = 'https://www.51job.com';
-const OUTPUT_DIR = path.resolve(__dirname, '../data');
-const OUTPUT_FILE = path.join(OUTPUT_DIR, 'raw_jobs.json');
+const DELAY_MS = 2000;
+const OUTPUT_DIR = path.resolve(__dirname, '..');
+const OUTPUT_FILE = path.join(OUTPUT_DIR, 'raw_jobs.json'); // project root
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Sleep for `ms` milliseconds. */
 function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Generate a UUID v4 string. Works on Node 14.17+. */
-function generateUUID() {
-  try {
-    return require('crypto').randomUUID();
-  } catch {
-    // Fallback for older Node versions
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-  }
-}
-
-/**
- * Build the search API URL for a given page number.
- * @param {string} cookie - Cookie string obtained from browser session
- * @param {number} pageNo  - 1-based page number
- * @returns {string}
- */
-function buildApiUrl(pageNo) {
-  const timestamp = Date.now();
-  const requestId = generateUUID();
-  const params = new URLSearchParams({
-    api_key: '51job',
-    timestamp: String(timestamp),
-    keyword: KEYWORD,
-    searchType: '2',
-    jobArea: '000000',
-    pageNo: String(pageNo),
-    pageSize: '50',
-    requestId,
-    lang: 'c',
-    stype: '1',
-    postchannel: '0000',
-    workyear: '99',
-    cotype: '99',
-    degreefrom: '99',
-    jobterm: '99',
-    companysize: '99',
-    ord_field: '0',
-    dibiaoid: '0',
-    line: '',
-    welfare: '',
-  });
-  return `${BASE_URL}?${params.toString()}`;
-}
-
-/**
- * Extract the relevant fields from a raw job item returned by the API.
- * The raw structure is preserved; only the documented fields are selected.
- * @param {object} item
- * @returns {object}
- */
 function extractFields(item) {
   return {
-    jobName: item.jobName ?? item.job_name ?? '',
-    jobId: item.jobid ?? item.jobId ?? '',
-    companyName: item.companyName ?? item.company_name ?? '',
-    companyId: item.companyId ?? item.companyid ?? '',
-    jobAreaString: item.jobAreaString ?? item.job_area_sub ?? '',
+    jobName:             item.jobName        ?? item.job_name         ?? '',
+    jobId:               item.jobid          ?? item.jobId            ?? '',
+    companyName:         item.companyName    ?? item.company_name     ?? '',
+    jobAreaString:       item.jobAreaString  ?? item.job_area_sub     ?? '',
     provideSalaryString: item.provideSalaryString ?? item.providesalary_text ?? '',
-    workYearString: item.workYearString ?? item.workyear ?? '',
-    degreeString: item.degreeString ?? item.degreefrom ?? '',
-    jobTags: item.jobTags ?? item.jobwelf_list ?? [],
-    jobDescribe: item.jobDescribe ?? item.attribute_text ?? '',
-    updateDate: item.updateDate ?? item.issuedate ?? '',
+    workYearString:      item.workYearString ?? item.workyear         ?? '',
+    degreeString:        item.degreeString   ?? item.degreefrom       ?? '',
+    jobTags:             Array.isArray(item.jobTags)     ? item.jobTags
+                       : Array.isArray(item.jobwelf_list) ? item.jobwelf_list
+                       : [],
+    jobDescribe:         item.jobDescribe    ?? (Array.isArray(item.attribute_text)
+                           ? item.attribute_text.join(' ') : item.attribute_text) ?? '',
+    updateDate:          item.updateDate     ?? item.issuedate        ?? '',
   };
 }
-
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 
 async function main() {
   console.log('Launching browser...');
@@ -115,115 +50,101 @@ async function main() {
   try {
     browser = await chromium.launch({
       executablePath: CHROME_PATH,
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: false,   // 非 headless，更难被检测
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
     });
-  } catch (err) {
-    console.error('Failed to launch Chrome at executablePath, falling back to channel:chrome');
-    browser = await chromium.launch({
-      channel: 'chrome',
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+  } catch {
+    browser = await chromium.launch({ channel: 'chrome', headless: false });
   }
 
   const context = await browser.newContext({
-    userAgent:
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
-      '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    viewport: { width: 1280, height: 800 },
+    locale: 'zh-CN',
+  });
+
+  const allJobs = [];
+
+  // 监听所有响应，抓取 51job 搜索 API 的 JSON
+  const capturedResponses = [];
+
+  context.on('response', async (response) => {
+    const url = response.url();
+    if (url.includes('we.51job.com/api/job/search-pc') || url.includes('search-pc')) {
+      try {
+        const json = await response.json();
+        capturedResponses.push(json);
+      } catch {
+        // 忽略非 JSON 响应
+      }
+    }
   });
 
   const page = await context.newPage();
 
-  // Step 1: Visit homepage to initialise cookies
-  console.log(`Visiting homepage to initialise cookies: ${HOME_URL}`);
-  try {
-    await page.goto(HOME_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await sleep(3000);
-    console.log('Homepage loaded, cookies initialised.');
-  } catch (err) {
-    console.error('Warning: failed to load homepage:', err.message);
-    // Continue anyway; we may still have enough context.
+  // 直接访问搜索页，让浏览器自己发请求
+  const searchUrl = `https://we.51job.com/pc/search?keyword=${encodeURIComponent(KEYWORD)}&searchType=2&sortType=0&metro=`;
+  console.log(`打开搜索页: ${searchUrl}`);
+
+  await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 60000 });
+  await sleep(3000);
+
+  console.log(`第 1 页已加载，捕获到 ${capturedResponses.length} 个 API 响应`);
+
+  // 处理第一页
+  for (const json of capturedResponses.splice(0)) {
+    const jobList = json?.engine_search_result?.job_list
+                 ?? json?.resultbody?.job?.items
+                 ?? [];
+    const jobs = jobList.map(extractFields);
+    allJobs.push(...jobs);
+    if (jobs.length) console.log(`  第 1 页: ${jobs.length} 条岗位`);
   }
 
-  // Step 2: Retrieve cookies and User-Agent for subsequent API calls
-  const cookies = await context.cookies();
-  const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+  // 翻页：点击"下一页"按钮
+  for (let pageNo = 2; pageNo <= PAGES; pageNo++) {
+    await sleep(DELAY_MS);
 
-  // Step 3: Iterate pages and call the search API
-  const allJobs = [];
-
-  for (let pageNo = 1; pageNo <= PAGES; pageNo++) {
-    const url = buildApiUrl(pageNo);
-    console.log(`Fetching page ${pageNo}/${PAGES}...`);
-
-    let jobList = [];
-
+    // 尝试点击下一页按钮
     try {
-      // Use page.evaluate to fire a fetch from inside the browser context so
-      // that cookies and browser fingerprints are automatically included.
-      const responseText = await page.evaluate(
-        async ({ fetchUrl, cookieStr }) => {
-          const res = await fetch(fetchUrl, {
-            method: 'GET',
-            headers: {
-              Accept: 'application/json, text/plain, */*',
-              'Accept-Language': 'zh-CN,zh;q=0.9',
-              Cookie: cookieStr,
-              Referer: 'https://we.51job.com/',
-            },
-            credentials: 'include',
-          });
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-          }
-          return res.text();
-        },
-        { fetchUrl: url, cookieStr: cookieHeader }
-      );
-
-      const json = JSON.parse(responseText);
-
-      // Normalise response shape — the API has been observed to return either:
-      //   { engine_search_result: { job_list: [...] } }
-      // or (older endpoint):
-      //   { resultbody: { job: { items: [...] } } }
-      if (json?.engine_search_result?.job_list) {
-        jobList = json.engine_search_result.job_list;
-      } else if (json?.resultbody?.job?.items) {
-        jobList = json.resultbody.job.items;
-      } else {
-        console.warn(`Page ${pageNo}: unexpected response shape, skipping.`);
+      const nextBtn = page.locator('button.next-page, a.next-page, [class*="next"], span:has-text("下一页"), button:has-text("下一页")').first();
+      const visible = await nextBtn.isVisible({ timeout: 5000 }).catch(() => false);
+      if (!visible) {
+        console.log(`第 ${pageNo} 页：找不到下一页按钮，停止翻页`);
+        break;
       }
+      await nextBtn.click();
+      await page.waitForLoadState('networkidle', { timeout: 15000 });
+      await sleep(2000);
     } catch (err) {
-      console.error(`Page ${pageNo}: network/parse error — ${err.message}`);
-      // Continue to next page instead of aborting.
-    }
-
-    if (jobList.length === 0) {
-      console.log(`Page ${pageNo}: empty job list, stopping early.`);
+      console.error(`翻页到第 ${pageNo} 页失败:`, err.message);
       break;
     }
 
-    const extracted = jobList.map(extractFields);
-    allJobs.push(...extracted);
-    console.log(`Page ${pageNo}: got ${extracted.length} jobs (total so far: ${allJobs.length})`);
+    console.log(`第 ${pageNo} 页已加载，捕获到 ${capturedResponses.length} 个新响应`);
 
-    if (pageNo < PAGES) {
-      await sleep(DELAY_MS);
+    for (const json of capturedResponses.splice(0)) {
+      const jobList = json?.engine_search_result?.job_list
+                   ?? json?.resultbody?.job?.items
+                   ?? [];
+      const jobs = jobList.map(extractFields);
+      allJobs.push(...jobs);
+      if (jobs.length) console.log(`  第 ${pageNo} 页: ${jobs.length} 条岗位`);
+    }
+
+    if (allJobs.length === 0 && pageNo >= 2) {
+      console.log('连续无数据，停止');
+      break;
     }
   }
 
-  // Step 4: Write results to disk
-  if (!fs.existsSync(OUTPUT_DIR)) {
-    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-  }
-
-  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(allJobs, null, 2), 'utf-8');
-  console.log(`\nDone! Scraped ${allJobs.length} jobs in total.`);
-  console.log(`Output written to: ${OUTPUT_FILE}`);
-
   await browser.close();
+
+  // 写入文件
+  if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(allJobs, null, 2), 'utf-8');
+  console.log(`\n完成！共抓取 ${allJobs.length} 条岗位`);
+  console.log(`输出: ${OUTPUT_FILE}`);
 }
 
 main().catch((err) => {
