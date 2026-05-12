@@ -1,0 +1,13 @@
+{
+  "name": "job-analyze",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "scrape": "node scripts/scrape.js",
+    "analyze": "node scripts/analyze.js",
+    "run": "bash scripts/run.sh"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0"
+  }
+}
