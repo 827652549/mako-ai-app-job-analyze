@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SKILLS.DAILY — 前端岗位技能趋势</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg:        #0f1419;
+      --card-bg:   #1a2332;
+      --border:    #2a3441;
+      --green:     #58d392;
+      --blue:      #4a9eff;
+      --text-main: #e6edf3;
+      --text-mute: #8b949e;
+      --font:      -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-logo {
+      font-family: monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--green);
+      letter-spacing: 0.1em;
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-center label {
+      color: var(--text-mute);
+      font-size: 13px;
+    }
+
+    #date-select {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #date-select:hover,
+    #date-select:focus {
+      border-color: var(--blue);
+    }
+
+    .header-right {
+      color: var(--text-mute);
+      font-size: 13px;
+    }
+
+    /* ── Main container ── */
+    .main {
+      flex: 1;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── Stat Cards ── */
+    .stat-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .stat-card:hover {
+      border-color: var(--blue);
+    }
+
+    .stat-label {
+      color: var(--text-mute);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+      font-family: monospace;
+    }
+
+    .stat-value {
+      color: var(--text-main);
+      font-size: 22px;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stat-value.highlight {
+      color: var(--green);
+    }
+
+    /* ── Charts Row ── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+    }
+
+    .chart-title {
+      color: var(--text-mute);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      font-family: monospace;
+      margin-bottom: 12px;
+    }
+
+    #bar-chart,
+    #line-chart {
+      width: 100%;
+      height: 420px;
+    }
+
+    /* ── Empty / Error states ── */
+    .empty-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 420px;
+      color: var(--text-mute);
+      font-size: 14px;
+    }
+
+    .error-box {
+      background: #2d1b1b;
+      border: 1px solid #ff6b6b;
+      color: #ff6b6b;
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 16px;
+      text-align: center;
+      color: var(--text-mute);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .stat-cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .charts-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stat-cards {
+        grid-template-columns: 1fr;
+      }
+      .header {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-logo">SKILLS.DAILY</div>
+    <div class="header-center">
+      <label for="date-select">日期</label>
+      <select id="date-select">
+        <option value="">加载中…</option>
+      </select>
+    </div>
+    <div class="header-right">前程无忧 · 前端</div>
+  </header>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Error banner -->
+    <div id="error-box" class="error-box" style="display:none;"></div>
+
+    <!-- Stat Cards -->
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-label">SAMPLE SIZE</div>
+        <div class="stat-value" id="stat-sample">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">TOP SKILL</div>
+        <div class="stat-value highlight" id="stat-top-skill">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">DATA DATE</div>
+        <div class="stat-value" id="stat-date">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">DAYS TRACKED</div>
+        <div class="stat-value" id="stat-days">—</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">SKILL DISTRIBUTION — 技能占比</div>
+        <div id="bar-chart"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">SKILL TREND — 历史趋势</div>
+        <div id="line-chart"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    数据说明：双层匹配策略（jobTags + JD任职要求段落，排除"优先"项）· 来源：前程无忧 · 每日本地采集后推送更新
+  </footer>
+
+  <script>
+    // ── Constants ──────────────────────────────────────────────
+    const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', monospace";
+    const COLOR_BG_CARD  = '#1a2332';
+    const COLOR_BORDER   = '#2a3441';
+    const COLOR_GREEN    = '#58d392';
+    const COLOR_GREEN_DIM = '#2a6e4d';
+    const COLOR_TEXT_MAIN = '#e6edf3';
+    const COLOR_TEXT_MUTE = '#8b949e';
+
+    const DEFAULT_TREND_SKILLS = ['Vue', 'React', 'TypeScript', 'Vite'];
+
+    // ── State ───────────────────────────────────────────────────
+    let currentIndex = null;
+    let barChart = null;
+    let lineChart = null;
+
+    // ── DOM refs ────────────────────────────────────────────────
+    const dateSelect   = document.getElementById('date-select');
+    const errorBox     = document.getElementById('error-box');
+    const statSample   = document.getElementById('stat-sample');
+    const statTopSkill = document.getElementById('stat-top-skill');
+    const statDate     = document.getElementById('stat-date');
+    const statDays     = document.getElementById('stat-days');
+
+    // ── Error helper ────────────────────────────────────────────
+    function showError(msg) {
+      errorBox.style.display = 'block';
+      errorBox.textContent = '加载失败：' + msg;
+    }
+
+    function hideError() {
+      errorBox.style.display = 'none';
+    }
+
+    // ── Date picker ─────────────────────────────────────────────
+    function renderDatePicker(index) {
+      dateSelect.innerHTML = '';
+      if (!index.dates || index.dates.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '暂无数据';
+        dateSelect.appendChild(opt);
+        return;
+      }
+      index.dates.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = d;
+        if (d === index.latest) opt.selected = true;
+        dateSelect.appendChild(opt);
+      });
+    }
+
+    // ── Stat Cards ──────────────────────────────────────────────
+    function renderStatCards(report, daysCount) {
+      // Sample size
+      statSample.textContent = report.sample != null ? report.sample + ' 条' : '—';
+
+      // Top skill: find skill with max pct
+      const skills = report.skills || {};
+      let topKey = null;
+      let topPct = -1;
+      for (const [key, val] of Object.entries(skills)) {
+        const pct = typeof val === 'object' ? (val.pct || 0) : val;
+        if (pct > topPct) {
+          topPct = pct;
+          topKey = key;
+        }
+      }
+      statTopSkill.textContent = topKey ? `${topKey} ${topPct}%` : '—';
+
+      // Data date
+      statDate.textContent = report.date || '—';
+
+      // Days tracked
+      statDays.textContent = daysCount + ' 天';
+    }
+
+    // ── Bar Chart ────────────────────────────────────────────────
+    function renderBarChart(report) {
+      const container = document.getElementById('bar-chart');
+
+      const skills = report.skills || {};
+
+      // Filter pct >= 2%, sort descending
+      const entries = Object.entries(skills)
+        .map(([key, val]) => {
+          if (typeof val === 'object') {
+            return { key, pct: val.pct || 0, tags: val.tags || 0, desc: val.desc || 0 };
+          }
+          // Legacy: plain number means pct only
+          return { key, pct: val, tags: val, desc: 0 };
+        })
+        .filter(item => item.pct >= 2)
+        .sort((a, b) => a.pct - b.pct); // ascending so top appears at top in horizontal bar
+
+      if (entries.length === 0) {
+        container.innerHTML = '<div class="empty-hint">暂无数据</div>';
+        if (barChart) { barChart.dispose(); barChart = null; }
+        return;
+      }
+
+      // Remove empty hint if any
+      container.innerHTML = '';
+
+      if (!barChart) {
+        barChart = echarts.init(container);
+      }
+
+      const skillNames = entries.map(e => e.key);
+      const tagValues  = entries.map(e => e.tags);
+      const descValues = entries.map(e => e.desc);
+
+      const option = {
+        backgroundColor: COLOR_BG_CARD,
+        textStyle: { color: COLOR_TEXT_MAIN, fontFamily: FONT_FAMILY },
+        grid: { left: '120px', right: '40px', top: '20px', bottom: '40px' },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          backgroundColor: '#1a2332',
+          borderColor: COLOR_BORDER,
+          textStyle: { color: COLOR_TEXT_MAIN, fontSize: 13 },
+          formatter(params) {
+            const skillName = params[0].axisValue;
+            const entry = entries.find(e => e.key === skillName);
+            if (!entry) return skillName;
+            return [
+              `<span style="font-weight:600;color:${COLOR_GREEN}">${skillName}</span>`,
+              `总占比：${entry.pct}%`,
+              `标签命中：${entry.tags} 条`,
+              `JD补充：${entry.desc} 条`,
+            ].join('<br/>');
+          }
+        },
+        xAxis: {
+          type: 'value',
+          max: 100,
+          axisLabel: { formatter: '{value}%', color: COLOR_TEXT_MUTE },
+          splitLine: { lineStyle: { color: COLOR_BORDER } },
+          axisLine: { lineStyle: { color: COLOR_BORDER } },
+        },
+        yAxis: {
+          type: 'category',
+          data: skillNames,
+          axisLabel: {
+            color: COLOR_TEXT_MAIN,
+            fontSize: 12,
+            width: 100,
+            overflow: 'truncate',
+          },
+          axisLine: { lineStyle: { color: COLOR_BORDER } },
+          axisTick: { show: false },
+        },
+        series: [
+          {
+            name: '标签命中',
+            type: 'bar',
+            stack: 'total',
+            data: tagValues,
+            itemStyle: { color: COLOR_GREEN },
+            emphasis: { itemStyle: { color: COLOR_GREEN } },
+          },
+          {
+            name: 'JD正文补充',
+            type: 'bar',
+            stack: 'total',
+            data: descValues,
+            itemStyle: { color: COLOR_GREEN_DIM },
+            emphasis: { itemStyle: { color: COLOR_GREEN_DIM } },
+          },
+        ],
+        legend: {
+          data: ['标签命中', 'JD正文补充'],
+          bottom: 0,
+          textStyle: { color: COLOR_TEXT_MUTE, fontSize: 12 },
+        },
+      };
+
+      barChart.setOption(option, true);
+    }
+
+    // ── Line Chart ───────────────────────────────────────────────
+    function renderLineChart(dates, reports) {
+      const container = document.getElementById('line-chart');
+
+      if (!dates || dates.length === 0) {
+        container.innerHTML = '<div class="empty-hint">暂无数据</div>';
+        if (lineChart) { lineChart.dispose(); lineChart = null; }
+        return;
+      }
+
+      container.innerHTML = '';
+      if (!lineChart) {
+        lineChart = echarts.init(container);
+      }
+
+      // Build series for each default skill
+      const series = DEFAULT_TREND_SKILLS.map(skill => {
+        const data = dates.map((_, i) => {
+          const report = reports[i];
+          if (!report || !report.skills) return null;
+          const val = report.skills[skill];
+          if (val == null) return null;
+          return typeof val === 'object' ? (val.pct != null ? val.pct : null) : val;
+        });
+
+        return {
+          name: skill,
+          type: 'line',
+          data,
+          connectNulls: false,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 4,
+        };
+      });
+
+      const option = {
+        backgroundColor: COLOR_BG_CARD,
+        textStyle: { color: COLOR_TEXT_MAIN, fontFamily: FONT_FAMILY },
+        legend: {
+          data: DEFAULT_TREND_SKILLS,
+          top: 0,
+          textStyle: { color: COLOR_TEXT_MAIN, fontSize: 12 },
+        },
+        grid: { left: '50px', right: '20px', top: '40px', bottom: '40px' },
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: '#1a2332',
+          borderColor: COLOR_BORDER,
+          textStyle: { color: COLOR_TEXT_MAIN, fontSize: 13 },
+          formatter(params) {
+            const date = params[0].axisValue;
+            const lines = [`<span style="color:${COLOR_TEXT_MUTE}">${date}</span>`];
+            params.forEach(p => {
+              if (p.value != null) {
+                lines.push(`${p.marker}${p.seriesName}: ${p.value}%`);
+              }
+            });
+            return lines.join('<br/>');
+          }
+        },
+        xAxis: {
+          type: 'category',
+          data: dates,
+          axisLabel: {
+            color: COLOR_TEXT_MUTE,
+            fontSize: 11,
+            rotate: dates.length > 10 ? 30 : 0,
+          },
+          axisLine: { lineStyle: { color: COLOR_BORDER } },
+          axisTick: { show: false },
+        },
+        yAxis: {
+          type: 'value',
+          max: 100,
+          axisLabel: { formatter: '{value}%', color: COLOR_TEXT_MUTE },
+          splitLine: { lineStyle: { color: COLOR_BORDER } },
+          axisLine: { lineStyle: { color: COLOR_BORDER } },
+        },
+        series,
+      };
+
+      lineChart.setOption(option, true);
+    }
+
+    // ── Resize handler ───────────────────────────────────────────
+    window.addEventListener('resize', () => {
+      if (barChart) barChart.resize();
+      if (lineChart) lineChart.resize();
+    });
+
+    // ── Date change ──────────────────────────────────────────────
+    dateSelect.addEventListener('change', (e) => {
+      const date = e.target.value;
+      if (!date || !currentIndex) return;
+      loadReport(date, currentIndex);
+    });
+
+    // ── Data loaders ─────────────────────────────────────────────
+    async function loadReport(date, index) {
+      try {
+        const report = await fetch(`/data/${date}.json`).then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        });
+        renderStatCards(report, index.dates.length);
+        renderBarChart(report);
+      } catch (err) {
+        showError(`加载 ${date}.json 时出错：${err.message}`);
+      }
+    }
+
+    async function loadTrendData(index) {
+      if (!index.dates || index.dates.length === 0) {
+        renderLineChart([], []);
+        return;
+      }
+      const reports = await Promise.all(
+        index.dates.map(d =>
+          fetch(`/data/${d}.json`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null)
+        )
+      );
+      renderLineChart(index.dates, reports);
+    }
+
+    // ── Init ─────────────────────────────────────────────────────
+    async function init() {
+      hideError();
+      try {
+        const index = await fetch('/data/index.json').then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        });
+
+        currentIndex = index;
+        renderDatePicker(index);
+
+        if (!index.latest || !index.dates || index.dates.length === 0) {
+          // No data yet — show empty states
+          statSample.textContent = '—';
+          statTopSkill.textContent = '—';
+          statDate.textContent = '—';
+          statDays.textContent = '0 天';
+          document.getElementById('bar-chart').innerHTML = '<div class="empty-hint">暂无数据</div>';
+          document.getElementById('line-chart').innerHTML = '<div class="empty-hint">暂无数据</div>';
+          return;
+        }
+
+        // Load latest report & trend concurrently
+        await Promise.all([
+          loadReport(index.latest, index),
+          loadTrendData(index),
+        ]);
+
+      } catch (err) {
+        showError(err.message);
+        // Still show empty charts
+        document.getElementById('bar-chart').innerHTML = '<div class="empty-hint">暂无数据</div>';
+        document.getElementById('line-chart').innerHTML = '<div class="empty-hint">暂无数据</div>';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
