@@ -2,133 +2,133 @@
   "date": "2026-05-12",
   "keyword": "前端",
   "platform": "前程无忧",
-  "sample": 100,
+  "sample": 220,
   "skills": {
     "Vue": {
-      "tags": 33,
-      "desc": 21,
-      "total": 54,
-      "pct": 54
+      "tags": 39,
+      "desc": 35,
+      "total": 74,
+      "pct": 34
     },
     "JavaScript": {
-      "tags": 24,
-      "desc": 12,
-      "total": 36,
-      "pct": 36
+      "tags": 26,
+      "desc": 26,
+      "total": 52,
+      "pct": 24
     },
     "React": {
-      "tags": 18,
-      "desc": 15,
-      "total": 33,
-      "pct": 33
+      "tags": 19,
+      "desc": 26,
+      "total": 45,
+      "pct": 20
     },
     "HTML5": {
-      "tags": 15,
-      "desc": 8,
-      "total": 23,
-      "pct": 23
-    },
-    "TypeScript": {
-      "tags": 3,
-      "desc": 18,
-      "total": 21,
-      "pct": 21
-    },
-    "Webpack": {
-      "tags": 9,
-      "desc": 10,
-      "total": 19,
-      "pct": 19
+      "tags": 20,
+      "desc": 9,
+      "total": 29,
+      "pct": 13
     },
     "CSS3": {
-      "tags": 1,
-      "desc": 17,
-      "total": 18,
-      "pct": 18
+      "tags": 0,
+      "desc": 26,
+      "total": 26,
+      "pct": 12
     },
-    "Vite": {
-      "tags": 1,
+    "Webpack": {
+      "tags": 11,
       "desc": 13,
-      "total": 14,
-      "pct": 14
-    },
-    "Angular": {
-      "tags": 5,
-      "desc": 6,
-      "total": 11,
+      "total": 24,
       "pct": 11
     },
+    "TypeScript": {
+      "tags": 2,
+      "desc": 18,
+      "total": 20,
+      "pct": 9
+    },
+    "Vite": {
+      "tags": 2,
+      "desc": 15,
+      "total": 17,
+      "pct": 8
+    },
     "Node.js": {
-      "tags": 3,
-      "desc": 7,
-      "total": 10,
-      "pct": 10
+      "tags": 6,
+      "desc": 10,
+      "total": 16,
+      "pct": 7
     },
-    "Pinia": {
-      "tags": 0,
-      "desc": 6,
-      "total": 6,
-      "pct": 6
-    },
-    "小程序": {
-      "tags": 0,
-      "desc": 5,
-      "total": 5,
+    "Angular": {
+      "tags": 2,
+      "desc": 10,
+      "total": 12,
       "pct": 5
     },
     "Vuex": {
-      "tags": 1,
-      "desc": 3,
-      "total": 4,
+      "tags": 4,
+      "desc": 5,
+      "total": 9,
       "pct": 4
+    },
+    "Pinia": {
+      "tags": 0,
+      "desc": 7,
+      "total": 7,
+      "pct": 3
+    },
+    "Flutter": {
+      "tags": 0,
+      "desc": 6,
+      "total": 6,
+      "pct": 3
+    },
+    "小程序": {
+      "tags": 1,
+      "desc": 5,
+      "total": 6,
+      "pct": 3
     },
     "React Native": {
       "tags": 0,
-      "desc": 3,
-      "total": 3,
-      "pct": 3
+      "desc": 5,
+      "total": 5,
+      "pct": 2
+    },
+    "uni-app": {
+      "tags": 4,
+      "desc": 1,
+      "total": 5,
+      "pct": 2
     },
     "Redux": {
       "tags": 0,
       "desc": 3,
       "total": 3,
-      "pct": 3
+      "pct": 1
     },
     "ECharts": {
-      "tags": 1,
-      "desc": 2,
+      "tags": 0,
+      "desc": 3,
       "total": 3,
-      "pct": 3
+      "pct": 1
     },
     "Three.js": {
-      "tags": 1,
-      "desc": 2,
+      "tags": 2,
+      "desc": 1,
       "total": 3,
-      "pct": 3
-    },
-    "Flutter": {
-      "tags": 0,
-      "desc": 2,
-      "total": 2,
-      "pct": 2
-    },
-    "uni-app": {
-      "tags": 0,
-      "desc": 2,
-      "total": 2,
-      "pct": 2
+      "pct": 1
     },
     "微前端": {
       "tags": 0,
       "desc": 2,
       "total": 2,
-      "pct": 2
+      "pct": 1
     },
     "Next.js": {
-      "tags": 1,
+      "tags": 0,
       "desc": 1,
-      "total": 2,
-      "pct": 2
+      "total": 1,
+      "pct": 0
     }
   }
 }
