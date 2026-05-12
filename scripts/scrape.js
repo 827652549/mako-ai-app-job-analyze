@@ -16,7 +16,7 @@ const path = require('path');
 
 const CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const KEYWORD = '前端';
-const PAGES = 5;
+const PAGES = 15;
 const DELAY_MS = 2000;
 const OUTPUT_DIR = path.resolve(__dirname, '..');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'raw_jobs.json'); // project root
