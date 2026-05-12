@@ -60,7 +60,8 @@
       font-size: 13px;
     }
 
-    #date-select {
+    #date-select,
+    #platform-select {
       background: var(--card-bg);
       border: 1px solid var(--border);
       color: var(--text-main);
@@ -74,7 +75,9 @@
     }
 
     #date-select:hover,
-    #date-select:focus {
+    #date-select:focus,
+    #platform-select:hover,
+    #platform-select:focus {
       border-color: var(--blue);
     }
 
@@ -222,8 +225,12 @@
       <select id="date-select">
         <option value="">加载中…</option>
       </select>
+      <label for="platform-select" style="margin-left:12px">平台</label>
+      <select id="platform-select">
+        <option value="">加载中…</option>
+      </select>
     </div>
-    <div class="header-right">前程无忧 · 前端</div>
+    <div class="header-right" id="header-platform-label">前端</div>
   </header>
 
   <!-- Main -->
@@ -285,12 +292,14 @@
 
     // ── State ───────────────────────────────────────────────────
     let currentIndex = null;
+    let currentPlatform = null; // current selected platform name
     let barChart = null;
     let lineChart = null;
 
     // ── DOM refs ────────────────────────────────────────────────
-    const dateSelect   = document.getElementById('date-select');
-    const errorBox     = document.getElementById('error-box');
+    const dateSelect     = document.getElementById('date-select');
+    const platformSelect = document.getElementById('platform-select');
+    const errorBox       = document.getElementById('error-box');
     const statSample   = document.getElementById('stat-sample');
     const statTopSkill = document.getElementById('stat-top-skill');
     const statDate     = document.getElementById('stat-date');
@@ -304,6 +313,44 @@
 
     function hideError() {
       errorBox.style.display = 'none';
+    }
+
+    // ── Platform normalizer ──────────────────────────────────────
+    /**
+     * Normalize old/new report format into { platformName: {sample, skills} }
+     * @param {object} report
+     * @returns {Record<string, {sample: number, skills: object}>}
+     */
+    function normalizePlatforms(report) {
+      // New format: has platforms field
+      if (report.platforms && typeof report.platforms === 'object') {
+        return report.platforms;
+      }
+      // Legacy format: flat sample + skills
+      const name = report.platform || '前程无忧';
+      return { [name]: { sample: report.sample, skills: report.skills || {} } };
+    }
+
+    // ── Platform picker ──────────────────────────────────────────
+    /**
+     * Render platform select options and update currentPlatform
+     * @param {Record<string, {sample: number, skills: object}>} platformsMap
+     */
+    function renderPlatformPicker(platformsMap) {
+      const names = Object.keys(platformsMap);
+      platformSelect.innerHTML = '';
+      names.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === currentPlatform || (!currentPlatform && names[0] === name)) {
+          opt.selected = true;
+          currentPlatform = name;
+        }
+        platformSelect.appendChild(opt);
+      });
+      // Update header label
+      document.getElementById('header-platform-label').textContent = currentPlatform + ' · 前端';
     }
 
     // ── Date picker ─────────────────────────────────────────────
@@ -552,6 +599,15 @@
       loadReport(date, currentIndex);
     });
 
+    // ── Platform change ──────────────────────────────────────────
+    platformSelect.addEventListener('change', (e) => {
+      currentPlatform = e.target.value;
+      document.getElementById('header-platform-label').textContent = currentPlatform + ' · 前端';
+      const date = dateSelect.value;
+      if (!date || !currentIndex) return;
+      loadReport(date, currentIndex);
+    });
+
     // ── Data loaders ─────────────────────────────────────────────
     async function loadReport(date, index) {
       try {
@@ -559,8 +615,27 @@
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json();
         });
-        renderStatCards(report, index.dates.length);
-        renderBarChart(report);
+
+        const platformsMap = normalizePlatforms(report);
+        const platformNames = Object.keys(platformsMap);
+
+        // Guard: no platform data available
+        if (platformNames.length === 0) {
+          renderStatCards({ sample: null, skills: {}, date: report.date }, index.dates.length);
+          renderBarChart({ skills: {} });
+          return;
+        }
+
+        // If currentPlatform no longer exists in new report, reset to first
+        if (!platformsMap[currentPlatform]) {
+          currentPlatform = platformNames[0];
+        }
+
+        renderPlatformPicker(platformsMap);
+
+        const platformData = platformsMap[currentPlatform];
+        renderStatCards({ ...platformData, date: report.date }, index.dates.length);
+        renderBarChart({ skills: platformData.skills || {} });
       } catch (err) {
         showError(`加载 ${date}.json 时出错：${err.message}`);
       }
@@ -578,7 +653,13 @@
             .catch(() => null)
         )
       );
-      renderLineChart(index.dates, reports);
+      // Extract current platform's data from each report
+      const platformReports = reports.map(r => {
+        if (!r) return null;
+        const map = normalizePlatforms(r);
+        return map[currentPlatform] || null;
+      });
+      renderLineChart(index.dates, platformReports);
     }
 
     // ── Init ─────────────────────────────────────────────────────

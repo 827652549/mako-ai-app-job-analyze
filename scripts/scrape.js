@@ -1,8 +1,10 @@
 /**
  * scrape.js
  *
- * Use Playwright + system Chrome to scrape front-end job listings from 51job.
- * Strategy: navigate to the search page and intercept the API responses via
+ * Use Playwright + system Chrome to scrape front-end job listings from multiple platforms.
+ * Currently supports: 前程无忧 (51job), 拉勾网 (Lagou).
+ *
+ * Strategy: navigate to each search page and intercept API responses via
  * page.on('response') — this ensures real cookies and browser fingerprints.
  *
  * Usage: node scripts/scrape.js
@@ -17,14 +19,22 @@ const path = require('path');
 const CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const KEYWORD = '前端';
 const PAGES = 15;
+const LAGOU_PAGES = 10;
 const DELAY_MS = 2000;
 const OUTPUT_DIR = path.resolve(__dirname, '..');
-const OUTPUT_FILE = path.join(OUTPUT_DIR, 'raw_jobs.json'); // project root
+
+// Output file paths
+const OUTPUT_51JOB  = path.join(OUTPUT_DIR, 'raw_jobs_51job.json');
+const OUTPUT_LAGOU  = path.join(OUTPUT_DIR, 'raw_jobs_lagou.json');
+const OUTPUT_COMPAT = path.join(OUTPUT_DIR, 'raw_jobs.json'); // backward compat for analyze.js
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// ---------------------------------------------------------------------------
+// 51job field extractor
+// ---------------------------------------------------------------------------
 function extractFields(item) {
   return {
     jobName:             item.jobName        ?? item.job_name         ?? '',
@@ -34,7 +44,7 @@ function extractFields(item) {
     provideSalaryString: item.provideSalaryString ?? item.providesalary_text ?? '',
     workYearString:      item.workYearString ?? item.workyear         ?? '',
     degreeString:        item.degreeString   ?? item.degreefrom       ?? '',
-    jobTags:             Array.isArray(item.jobTags)     ? item.jobTags
+    jobTags:             Array.isArray(item.jobTags)      ? item.jobTags
                        : Array.isArray(item.jobwelf_list) ? item.jobwelf_list
                        : [],
     jobDescribe:         item.jobDescribe    ?? (Array.isArray(item.attribute_text)
@@ -43,6 +53,227 @@ function extractFields(item) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// 拉勾网 field extractor
+// ---------------------------------------------------------------------------
+function extractLagouFields(item) {
+  return {
+    jobName:             item.positionName || item.jobName || '',
+    jobId:               String(item.positionId || item.id || ''),
+    companyName:         item.companyName || item.company?.companyName || '',
+    jobAreaString:       item.city || item.district || '',
+    provideSalaryString: item.salary || item.salaryText || '',
+    workYearString:      item.workYear || item.experience || '',
+    degreeString:        item.education || item.degree || '',
+    jobTags:             Array.isArray(item.skillLables) ? item.skillLables
+                       : Array.isArray(item.label)       ? item.label
+                       : [],
+    jobDescribe:         item.positionAdvantage || item.jobDescription || '',
+    updateDate:          item.createTime || item.refreshTime || '',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 从拉勾网 JSON 响应中尝试提取岗位列表
+// ---------------------------------------------------------------------------
+function extractLagouJobList(json) {
+  const candidates = [
+    json?.content?.positionResult?.result,
+    json?.data?.result,
+    json?.result?.pageItems,
+  ];
+  for (const list of candidates) {
+    if (Array.isArray(list) && list.length > 0) return list;
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
+// 前程无忧爬虫
+// ---------------------------------------------------------------------------
+async function scrape51job(context, pages) {
+  console.log('\n[前程无忧] 开始采集...');
+  const allJobs = [];
+  const capturedResponses = [];
+
+  // 监听 51job API 响应
+  const onResponse = async (response) => {
+    const url = response.url();
+    if (url.includes('we.51job.com/api/job/search-pc') || url.includes('search-pc')) {
+      try {
+        const json = await response.json();
+        capturedResponses.push(json);
+      } catch {
+        // 忽略非 JSON 响应
+      }
+    }
+  };
+  context.on('response', onResponse);
+
+  const page = await context.newPage();
+  const searchUrl = `https://we.51job.com/pc/search?keyword=${encodeURIComponent(KEYWORD)}&searchType=2&sortType=0&metro=`;
+  console.log(`[前程无忧] 打开搜索页: ${searchUrl}`);
+
+  try {
+    await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 60000 });
+    await sleep(3000);
+
+    console.log(`[前程无忧] 第 1 页已加载，捕获到 ${capturedResponses.length} 个 API 响应`);
+
+    // 处理第一页
+    for (const json of capturedResponses.splice(0)) {
+      const jobList = json?.engine_search_result?.job_list
+                   ?? json?.resultbody?.job?.items
+                   ?? [];
+      const jobs = jobList.map(extractFields);
+      allJobs.push(...jobs);
+      if (jobs.length) console.log(`  [前程无忧] 第 1 页: ${jobs.length} 条岗位`);
+    }
+
+    // 翻页
+    for (let pageNo = 2; pageNo <= pages; pageNo++) {
+      await sleep(DELAY_MS);
+
+      try {
+        const nextBtn = page.locator('button.next-page, a.next-page, [class*="next"], span:has-text("下一页"), button:has-text("下一页")').first();
+        const visible = await nextBtn.isVisible({ timeout: 5000 }).catch(() => false);
+        if (!visible) {
+          console.log(`[前程无忧] 第 ${pageNo} 页：找不到下一页按钮，停止翻页`);
+          break;
+        }
+        await nextBtn.click();
+        await page.waitForLoadState('networkidle', { timeout: 15000 });
+        await sleep(2000);
+      } catch (err) {
+        console.error(`[前程无忧] 翻页到第 ${pageNo} 页失败:`, err.message);
+        break;
+      }
+
+      console.log(`[前程无忧] 第 ${pageNo} 页已加载，捕获到 ${capturedResponses.length} 个新响应`);
+
+      for (const json of capturedResponses.splice(0)) {
+        const jobList = json?.engine_search_result?.job_list
+                     ?? json?.resultbody?.job?.items
+                     ?? [];
+        const jobs = jobList.map(extractFields);
+        allJobs.push(...jobs);
+        if (jobs.length) console.log(`  [前程无忧] 第 ${pageNo} 页: ${jobs.length} 条岗位`);
+      }
+
+      if (allJobs.length === 0 && pageNo >= 2) {
+        console.log('[前程无忧] 连续无数据，停止');
+        break;
+      }
+    }
+  } finally {
+    await page.close();
+    context.off('response', onResponse);
+  }
+
+  console.log(`[前程无忧] 采集完成，共 ${allJobs.length} 条`);
+  return { jobs: allJobs, platform: '前程无忧' };
+}
+
+// ---------------------------------------------------------------------------
+// 拉勾网爬虫
+// ---------------------------------------------------------------------------
+async function scrapeLagou(context, pages) {
+  console.log('\n[拉勾网] 开始采集...');
+  const allJobs = [];
+  const capturedResponses = [];
+
+  // 监听拉勾网 JSON 响应
+  const onResponse = async (response) => {
+    const url = response.url();
+    if (!url.includes('lagou.com')) return;
+    try {
+      const json = await response.json();
+      capturedResponses.push(json);
+    } catch {
+      // 忽略非 JSON 响应
+    }
+  };
+  context.on('response', onResponse);
+
+  const page = await context.newPage();
+  const searchUrl = `https://www.lagou.com/wn/jobs?fromSearch=true&kd=${encodeURIComponent(KEYWORD)}`;
+  console.log(`[拉勾网] 打开搜索页: ${searchUrl}`);
+
+  try {
+    await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 60000 });
+    await sleep(3000);
+
+    console.log(`[拉勾网] 第 1 页已加载，捕获到 ${capturedResponses.length} 个响应`);
+
+    // 处理第一页
+    for (const json of capturedResponses.splice(0)) {
+      const jobList = extractLagouJobList(json);
+      if (jobList.length > 0) {
+        const jobs = jobList.map(extractLagouFields);
+        allJobs.push(...jobs);
+        console.log(`  [拉勾网] 第 1 页: ${jobs.length} 条岗位`);
+      }
+    }
+
+    // 翻页
+    for (let pageNo = 2; pageNo <= pages; pageNo++) {
+      await sleep(DELAY_MS);
+
+      try {
+        // 尝试多种下一页选择器
+        const nextBtn = page.locator([
+          'button[class*="next"]',
+          'a[class*="next"]',
+          'button:has-text("下一页")',
+          'a:has-text("下一页")',
+          'span:has-text("下一页")',
+        ].join(', ')).first();
+
+        const visible = await nextBtn.isVisible({ timeout: 5000 }).catch(() => false);
+        if (!visible) {
+          console.log(`[拉勾网] 第 ${pageNo} 页：找不到下一页按钮，停止翻页`);
+          break;
+        }
+        await nextBtn.click();
+        await page.waitForLoadState('networkidle', { timeout: 15000 });
+        await sleep(2000);
+      } catch (err) {
+        console.error(`[拉勾网] 翻页到第 ${pageNo} 页失败:`, err.message);
+        break;
+      }
+
+      console.log(`[拉勾网] 第 ${pageNo} 页已加载，捕获到 ${capturedResponses.length} 个新响应`);
+
+      for (const json of capturedResponses.splice(0)) {
+        const jobList = extractLagouJobList(json);
+        if (jobList.length > 0) {
+          const jobs = jobList.map(extractLagouFields);
+          allJobs.push(...jobs);
+          console.log(`  [拉勾网] 第 ${pageNo} 页: ${jobs.length} 条岗位`);
+        }
+      }
+    }
+  } finally {
+    await page.close();
+    context.off('response', onResponse);
+  }
+
+  console.log(`[拉勾网] 采集完成，共 ${allJobs.length} 条`);
+  return { jobs: allJobs, platform: '拉勾网' };
+}
+
+// ---------------------------------------------------------------------------
+// 写入 JSON 文件
+// ---------------------------------------------------------------------------
+function writeJson(filePath, data) {
+  if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  console.log(`输出: ${filePath} (${data.length} 条)`);
+}
+
+// ---------------------------------------------------------------------------
+// 主函数
+// ---------------------------------------------------------------------------
 async function main() {
   console.log('Launching browser...');
 
@@ -50,7 +281,7 @@ async function main() {
   try {
     browser = await chromium.launch({
       executablePath: CHROME_PATH,
-      headless: false,   // 非 headless，更难被检测
+      headless: false,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1280,800'],
     });
   } catch {
@@ -63,88 +294,36 @@ async function main() {
     locale: 'zh-CN',
   });
 
-  const allJobs = [];
-
-  // 监听所有响应，抓取 51job 搜索 API 的 JSON
-  const capturedResponses = [];
-
-  context.on('response', async (response) => {
-    const url = response.url();
-    if (url.includes('we.51job.com/api/job/search-pc') || url.includes('search-pc')) {
-      try {
-        const json = await response.json();
-        capturedResponses.push(json);
-      } catch {
-        // 忽略非 JSON 响应
-      }
-    }
-  });
-
-  const page = await context.newPage();
-
-  // 直接访问搜索页，让浏览器自己发请求
-  const searchUrl = `https://we.51job.com/pc/search?keyword=${encodeURIComponent(KEYWORD)}&searchType=2&sortType=0&metro=`;
-  console.log(`打开搜索页: ${searchUrl}`);
-
-  await page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 60000 });
-  await sleep(3000);
-
-  console.log(`第 1 页已加载，捕获到 ${capturedResponses.length} 个 API 响应`);
-
-  // 处理第一页
-  for (const json of capturedResponses.splice(0)) {
-    const jobList = json?.engine_search_result?.job_list
-                 ?? json?.resultbody?.job?.items
-                 ?? [];
-    const jobs = jobList.map(extractFields);
-    allJobs.push(...jobs);
-    if (jobs.length) console.log(`  第 1 页: ${jobs.length} 条岗位`);
+  // --- 前程无忧 ---
+  let jobs51job = [];
+  try {
+    const result = await scrape51job(context, PAGES);
+    jobs51job = result.jobs;
+  } catch (err) {
+    console.warn('[前程无忧] 采集失败，跳过:', err.message);
   }
 
-  // 翻页：点击"下一页"按钮
-  for (let pageNo = 2; pageNo <= PAGES; pageNo++) {
-    await sleep(DELAY_MS);
-
-    // 尝试点击下一页按钮
-    try {
-      const nextBtn = page.locator('button.next-page, a.next-page, [class*="next"], span:has-text("下一页"), button:has-text("下一页")').first();
-      const visible = await nextBtn.isVisible({ timeout: 5000 }).catch(() => false);
-      if (!visible) {
-        console.log(`第 ${pageNo} 页：找不到下一页按钮，停止翻页`);
-        break;
-      }
-      await nextBtn.click();
-      await page.waitForLoadState('networkidle', { timeout: 15000 });
-      await sleep(2000);
-    } catch (err) {
-      console.error(`翻页到第 ${pageNo} 页失败:`, err.message);
-      break;
-    }
-
-    console.log(`第 ${pageNo} 页已加载，捕获到 ${capturedResponses.length} 个新响应`);
-
-    for (const json of capturedResponses.splice(0)) {
-      const jobList = json?.engine_search_result?.job_list
-                   ?? json?.resultbody?.job?.items
-                   ?? [];
-      const jobs = jobList.map(extractFields);
-      allJobs.push(...jobs);
-      if (jobs.length) console.log(`  第 ${pageNo} 页: ${jobs.length} 条岗位`);
-    }
-
-    if (allJobs.length === 0 && pageNo >= 2) {
-      console.log('连续无数据，停止');
-      break;
-    }
+  // --- 拉勾网 ---
+  let jobsLagou = [];
+  try {
+    const result = await scrapeLagou(context, LAGOU_PAGES);
+    jobsLagou = result.jobs;
+  } catch (err) {
+    console.warn('[拉勾网] 采集失败，跳过:', err.message);
   }
 
   await browser.close();
 
-  // 写入文件
-  if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(allJobs, null, 2), 'utf-8');
-  console.log(`\n完成！共抓取 ${allJobs.length} 条岗位`);
-  console.log(`输出: ${OUTPUT_FILE}`);
+  // --- 写入文件 ---
+  console.log('\n写入输出文件...');
+  writeJson(OUTPUT_51JOB,  jobs51job);
+  writeJson(OUTPUT_LAGOU,  jobsLagou);
+  writeJson(OUTPUT_COMPAT, jobs51job); // backward compat: raw_jobs.json = 51job 数据
+
+  console.log(`\n完成！`);
+  console.log(`  前程无忧: ${jobs51job.length} 条`);
+  console.log(`  拉勾网:   ${jobsLagou.length} 条`);
+  console.log(`  合计:     ${jobs51job.length + jobsLagou.length} 条`);
 }
 
 main().catch((err) => {
