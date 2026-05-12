@@ -33,6 +33,13 @@ const SKILLS = [
   { name: 'HTML5',         keywords: ['html5', 'html '] },
 ];
 
+// Platform name mapping: file suffix → display name
+const PLATFORM_NAME_MAP = {
+  '51job':   '前程无忧',
+  'zhaopin': '智联招聘',
+  'boss':    'BOSS直聘',
+};
+
 // Words that indicate a skill is "preferred / bonus" rather than required
 const OPTIONAL_MARKERS = ['优先', '加分', 'preferred'];
 
@@ -157,43 +164,18 @@ function matchDesc(sectionText, keywords) {
 }
 
 // ---------------------------------------------------------------------------
-// Main analysis
+// Per-platform analysis — extracted as a reusable function
 // ---------------------------------------------------------------------------
 
-async function main() {
-  const workDir = path.resolve(__dirname, '..');
-  const rawJobsPath = path.join(workDir, 'raw_jobs.json');
-  const dataDir = path.join(workDir, 'data');
-  const today = new Date().toISOString().slice(0, 10);
-  const reportPath = path.join(dataDir, `${today}.json`);
-  const indexPath = path.join(dataDir, 'index.json');
-
-  // 1. Read raw_jobs.json -------------------------------------------------------
-  let jobs;
-  try {
-    const raw = await fs.promises.readFile(rawJobsPath, 'utf-8');
-    jobs = JSON.parse(raw);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      console.error(
-        '[analyze] 错误：找不到 raw_jobs.json，请先运行爬虫脚本（npm run scrape）生成数据文件。'
-      );
-    } else {
-      console.error('[analyze] 错误：读取 raw_jobs.json 失败 —', err.message);
-    }
-    process.exit(1);
-  }
-
-  if (!Array.isArray(jobs) || jobs.length === 0) {
-    console.error('[analyze] 错误：raw_jobs.json 为空数组或格式不正确。');
-    process.exit(1);
-  }
-
+/**
+ * Analyze a list of job objects and return skill statistics.
+ * @param {object[]} jobs
+ * @returns {{ sample: number, skills: object }}
+ */
+function analyzePlatform(jobs) {
   const sample = jobs.length;
-  console.log(`[analyze] 开始分析，共 ${sample} 条岗位数据…`);
 
-  // 2. Accumulate tags/desc counts per skill ------------------------------------
-  const counts = {}; // { skillName: { tags: number, desc: number } }
+  const counts = {};
   for (const skill of SKILLS) {
     counts[skill.name] = { tags: 0, desc: 0 };
   }
@@ -219,13 +201,6 @@ async function main() {
     }
   }
 
-  // 3. Build report object -----------------------------------------------------
-
-  // Determine keyword and platform from the first job (best-effort)
-  const firstJob = jobs[0];
-  const keyword = firstJob.searchKeyword || firstJob.keyword || '前端';
-  const platform = firstJob.platform || firstJob.source || '前程无忧';
-
   // Build skills map — only include skills with total > 0, sorted by total desc
   const skillsEntries = SKILLS
     .map((skill) => {
@@ -237,22 +212,125 @@ async function main() {
     .filter(([, v]) => v.total > 0)
     .sort(([, a], [, b]) => b.total - a.total);
 
-  const skillsObj = Object.fromEntries(skillsEntries);
+  return {
+    sample,
+    skills: Object.fromEntries(skillsEntries),
+  };
+}
 
+// ---------------------------------------------------------------------------
+// Discover platform data files
+// ---------------------------------------------------------------------------
+
+/**
+ * Scan workDir for raw_jobs_*.json files.
+ * Returns an array of { filePath, platformName } objects.
+ * Falls back to raw_jobs.json (as 前程无忧) if no multi-platform files found.
+ * @param {string} workDir
+ * @returns {{ filePath: string, platformName: string }[]}
+ */
+function discoverPlatformFiles(workDir) {
+  const multiPlatformRe = /^raw_jobs_(.+)\.json$/;
+  let entries;
+
+  try {
+    entries = fs.readdirSync(workDir);
+  } catch (err) {
+    console.error('[analyze] 错误：无法读取项目根目录 —', err.message);
+    process.exit(1);
+  }
+
+  const platformFiles = entries
+    .map((filename) => {
+      const match = filename.match(multiPlatformRe);
+      if (!match) return null;
+      const suffix = match[1];
+      const platformName = PLATFORM_NAME_MAP[suffix] || suffix;
+      return { filePath: path.join(workDir, filename), platformName };
+    })
+    .filter(Boolean);
+
+  if (platformFiles.length > 0) {
+    return platformFiles;
+  }
+
+  // Fallback: try legacy raw_jobs.json
+  const legacyPath = path.join(workDir, 'raw_jobs.json');
+  if (fs.existsSync(legacyPath)) {
+    console.log('[analyze] 未找到 raw_jobs_*.json，回退使用旧版 raw_jobs.json（平台：前程无忧）');
+    return [{ filePath: legacyPath, platformName: '前程无忧' }];
+  }
+
+  console.error(
+    '[analyze] 错误：未找到任何数据文件（raw_jobs_*.json 或 raw_jobs.json），请先运行爬虫脚本。'
+  );
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main() {
+  const workDir = path.resolve(__dirname, '..');
+  const dataDir = path.join(workDir, 'data');
+  const today = new Date().toISOString().slice(0, 10);
+  const reportPath = path.join(dataDir, `${today}.json`);
+  const indexPath = path.join(dataDir, 'index.json');
+
+  // 1. Discover platform files ---------------------------------------------------
+  const platformFiles = discoverPlatformFiles(workDir);
+  console.log(`[analyze] 发现 ${platformFiles.length} 个平台数据文件：${platformFiles.map((f) => f.platformName).join('、')}`);
+
+  // 2. Determine keyword (from first successfully loaded file) -------------------
+  let keyword = '前端';
+
+  // 3. Analyze each platform -----------------------------------------------------
+  const platforms = {};
+
+  for (const { filePath, platformName } of platformFiles) {
+    let jobs;
+    try {
+      const raw = await fs.promises.readFile(filePath, 'utf-8');
+      jobs = JSON.parse(raw);
+    } catch (err) {
+      console.warn(`[analyze] 警告：读取 ${path.basename(filePath)} 失败，跳过该平台 —`, err.message);
+      continue;
+    }
+
+    if (!Array.isArray(jobs) || jobs.length === 0) {
+      console.warn(`[analyze] 警告：${path.basename(filePath)} 为空数组，跳过平台「${platformName}」`);
+      continue;
+    }
+
+    // Extract keyword from job data (best-effort, only set once)
+    if (keyword === '前端' && jobs[0]) {
+      keyword = jobs[0].searchKeyword || jobs[0].keyword || '前端';
+    }
+
+    console.log(`[analyze] 正在分析平台「${platformName}」，共 ${jobs.length} 条岗位数据…`);
+    const result = analyzePlatform(jobs);
+    platforms[platformName] = result;
+  }
+
+  if (Object.keys(platforms).length === 0) {
+    console.error('[analyze] 错误：所有平台数据均为空或读取失败，中止分析。');
+    process.exit(1);
+  }
+
+  // 4. Build report object -------------------------------------------------------
   const report = {
     date: today,
     keyword,
-    platform,
-    sample,
-    skills: skillsObj,
+    platforms,
   };
 
-  // 4. Write report file --------------------------------------------------------
+  // 5. Write report file ---------------------------------------------------------
   await fs.promises.mkdir(dataDir, { recursive: true });
   await fs.promises.writeFile(reportPath, JSON.stringify(report, null, 2), 'utf-8');
   console.log(`[analyze] 报告已写入 ${reportPath}`);
 
-  // 5. Update data/index.json ---------------------------------------------------
+  // 6. Update data/index.json ----------------------------------------------------
   let indexData = { dates: [], latest: '' };
   try {
     const raw = await fs.promises.readFile(indexPath, 'utf-8');
@@ -278,14 +356,20 @@ async function main() {
   await fs.promises.writeFile(indexPath, JSON.stringify(indexData, null, 2), 'utf-8');
   console.log(`[analyze] data/index.json 已更新，latest = ${indexData.latest}`);
 
-  // 6. Print summary ------------------------------------------------------------
-  const top5 = skillsEntries.slice(0, 5);
+  // 7. Print summary per platform ------------------------------------------------
   console.log('\n========== 分析摘要 ==========');
-  console.log(`共分析岗位：${sample} 条`);
-  console.log('Top 5 技能：');
-  for (const [name, { tags, desc, total, pct }] of top5) {
-    console.log(`  ${name.padEnd(14)} total=${total}  (tags=${tags}, desc=${desc})  ${pct}%`);
+  for (const [platformName, { sample, skills }] of Object.entries(platforms)) {
+    const skillsEntries = Object.entries(skills);
+    const top5 = skillsEntries.slice(0, 5);
+    console.log(`\n平台：${platformName}（共 ${sample} 条岗位）`);
+    console.log('  Top 5 技能：');
+    for (const [name, { tags, desc, total, pct }] of top5) {
+      console.log(`    ${name.padEnd(14)} total=${total}  (tags=${tags}, desc=${desc})  ${pct}%`);
+    }
   }
+
+  const totalSample = Object.values(platforms).reduce((sum, p) => sum + p.sample, 0);
+  console.log(`\n各平台样本总计：${totalSample} 条`);
   console.log('================================\n');
 }
 
