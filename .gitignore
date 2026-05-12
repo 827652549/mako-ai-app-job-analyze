@@ -2,4 +2,3 @@ node_modules/
 raw_jobs.json
 *.log
 .mcp.json
-lagou-state.json

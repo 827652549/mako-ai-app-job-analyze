@@ -135,7 +135,98 @@
     },
     "智联招聘": {
       "sample": 100,
-      "skills": {}
+      "skills": {
+        "Vue": {
+          "tags": 47,
+          "desc": 0,
+          "total": 47,
+          "pct": 47
+        },
+        "JavaScript": {
+          "tags": 44,
+          "desc": 0,
+          "total": 44,
+          "pct": 44
+        },
+        "React": {
+          "tags": 36,
+          "desc": 0,
+          "total": 36,
+          "pct": 36
+        },
+        "HTML5": {
+          "tags": 33,
+          "desc": 0,
+          "total": 33,
+          "pct": 33
+        },
+        "Node.js": {
+          "tags": 11,
+          "desc": 0,
+          "total": 11,
+          "pct": 11
+        },
+        "TypeScript": {
+          "tags": 10,
+          "desc": 0,
+          "total": 10,
+          "pct": 10
+        },
+        "ECharts": {
+          "tags": 6,
+          "desc": 0,
+          "total": 6,
+          "pct": 6
+        },
+        "Angular": {
+          "tags": 5,
+          "desc": 0,
+          "total": 5,
+          "pct": 5
+        },
+        "React Native": {
+          "tags": 5,
+          "desc": 0,
+          "total": 5,
+          "pct": 5
+        },
+        "uni-app": {
+          "tags": 5,
+          "desc": 0,
+          "total": 5,
+          "pct": 5
+        },
+        "Three.js": {
+          "tags": 4,
+          "desc": 0,
+          "total": 4,
+          "pct": 4
+        },
+        "Webpack": {
+          "tags": 2,
+          "desc": 0,
+          "total": 2,
+          "pct": 2
+        },
+        "Flutter": {
+          "tags": 2,
+          "desc": 0,
+          "total": 2,
+          "pct": 2
+        },
+        "小程序": {
+          "tags": 1,
+          "desc": 0,
+          "total": 1,
+          "pct": 1
+        },
+        "Redux": {
+          "tags": 1,
+          "desc": 0,
+          "total": 1,
+          "pct": 1
+        }
+      }
     }
   }
 }

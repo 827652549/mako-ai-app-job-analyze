@@ -35,9 +35,9 @@ const SKILLS = [
 
 // Platform name mapping: file suffix → display name
 const PLATFORM_NAME_MAP = {
-  '51job': '前程无忧',
-  'lagou': '拉勾网',
-  'boss':  'BOSS直聘',
+  '51job':   '前程无忧',
+  'zhaopin': '智联招聘',
+  'boss':    'BOSS直聘',
 };
 
 // Words that indicate a skill is "preferred / bonus" rather than required
