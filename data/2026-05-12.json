@@ -6,45 +6,45 @@
       "sample": 220,
       "skills": {
         "Vue": {
-          "tags": 32,
-          "desc": 47,
-          "total": 79,
-          "pct": 36
+          "tags": 34,
+          "desc": 43,
+          "total": 77,
+          "pct": 35
         },
         "JavaScript": {
           "tags": 22,
-          "desc": 37,
-          "total": 59,
-          "pct": 27
+          "desc": 28,
+          "total": 50,
+          "pct": 23
         },
         "React": {
-          "tags": 17,
-          "desc": 30,
-          "total": 47,
+          "tags": 18,
+          "desc": 28,
+          "total": 46,
           "pct": 21
         },
         "HTML5": {
-          "tags": 14,
-          "desc": 18,
+          "tags": 16,
+          "desc": 16,
           "total": 32,
           "pct": 15
         },
         "CSS3": {
           "tags": 0,
-          "desc": 31,
-          "total": 31,
-          "pct": 14
-        },
-        "TypeScript": {
-          "tags": 1,
-          "desc": 20,
-          "total": 21,
-          "pct": 10
+          "desc": 27,
+          "total": 27,
+          "pct": 12
         },
         "Webpack": {
-          "tags": 7,
+          "tags": 10,
           "desc": 14,
-          "total": 21,
+          "total": 24,
+          "pct": 11
+        },
+        "TypeScript": {
+          "tags": 0,
+          "desc": 22,
+          "total": 22,
           "pct": 10
         },
         "Vite": {
@@ -60,72 +60,78 @@
           "pct": 7
         },
         "Angular": {
-          "tags": 2,
-          "desc": 11,
-          "total": 13,
-          "pct": 6
-        },
-        "Pinia": {
-          "tags": 0,
-          "desc": 12,
-          "total": 12,
+          "tags": 4,
+          "desc": 7,
+          "total": 11,
           "pct": 5
         },
-        "Vuex": {
-          "tags": 3,
-          "desc": 5,
-          "total": 8,
-          "pct": 4
-        },
-        "Flutter": {
+        "Pinia": {
           "tags": 0,
           "desc": 6,
           "total": 6,
           "pct": 3
         },
-        "uni-app": {
-          "tags": 4,
-          "desc": 2,
-          "total": 6,
-          "pct": 3
-        },
-        "小程序": {
-          "tags": 1,
-          "desc": 5,
+        "Vuex": {
+          "tags": 3,
+          "desc": 3,
           "total": 6,
           "pct": 3
         },
         "ECharts": {
-          "tags": 0,
-          "desc": 6,
+          "tags": 2,
+          "desc": 4,
           "total": 6,
           "pct": 3
         },
-        "React Native": {
+        "小程序": {
           "tags": 0,
           "desc": 5,
           "total": 5,
           "pct": 2
         },
-        "Redux": {
-          "tags": 0,
-          "desc": 4,
+        "Three.js": {
+          "tags": 2,
+          "desc": 3,
+          "total": 5,
+          "pct": 2
+        },
+        "uni-app": {
+          "tags": 3,
+          "desc": 1,
           "total": 4,
           "pct": 2
         },
+        "React Native": {
+          "tags": 0,
+          "desc": 3,
+          "total": 3,
+          "pct": 1
+        },
+        "Flutter": {
+          "tags": 0,
+          "desc": 3,
+          "total": 3,
+          "pct": 1
+        },
         "微前端": {
           "tags": 0,
+          "desc": 3,
+          "total": 3,
+          "pct": 1
+        },
+        "Next.js": {
+          "tags": 1,
           "desc": 2,
-          "total": 2,
+          "total": 3,
           "pct": 1
         },
-        "Three.js": {
-          "tags": 2,
-          "desc": 0,
-          "total": 2,
+        "Redux": {
+          "tags": 0,
+          "desc": 3,
+          "total": 3,
           "pct": 1
         },
-        "Nuxt": {
+        "Tailwind": {
           "tags": 0,
           "desc": 1,
           "total": 1,
