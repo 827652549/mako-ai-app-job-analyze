@@ -1,0 +1,1 @@
+../../../mako-rules-base/claude/agents/web-researcher.md
