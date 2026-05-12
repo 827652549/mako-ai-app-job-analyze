@@ -175,10 +175,40 @@ async function scrape51job(context, pages) {
 }
 
 // ---------------------------------------------------------------------------
+// Cookie 工具
+// ---------------------------------------------------------------------------
+const COOKIES_FILE = path.resolve(__dirname, '..', 'lagou-cookies.json');
+
+/**
+ * Load saved cookies for lagou.com.
+ * Returns the cookie array or empty array if file missing.
+ */
+function loadLagouCookies() {
+  if (!fs.existsSync(COOKIES_FILE)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(COOKIES_FILE, 'utf-8'));
+  } catch {
+    console.warn('[拉勾网] Cookie 文件读取失败，将使用无登录态模式');
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 拉勾网爬虫
 // ---------------------------------------------------------------------------
 async function scrapeLagou(context, pages) {
   console.log('\n[拉勾网] 开始采集...');
+
+  // 注入已保存的 Cookie（如存在）
+  const savedCookies = loadLagouCookies();
+  if (savedCookies.length > 0) {
+    await context.addCookies(savedCookies);
+    console.log(`[拉勾网] 已加载 ${savedCookies.length} 条 Cookie`);
+  } else {
+    console.warn('[拉勾网] 未找到 Cookie 文件，将触发验证码，采集可能失败');
+    console.warn('         请先运行 node scripts/lagou-login.js 登录');
+  }
+
   const allJobs = [];
   const capturedResponses = [];
 
